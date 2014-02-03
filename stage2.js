@@ -85,6 +85,8 @@ var VM = {
 
   exec: function()
   {
+    'use strict';
+
     // virtual machine architecture
     // ++++++++++++++++++++++++++++
     //
@@ -140,7 +142,127 @@ var VM = {
     //   => if (fl == 0) jmp r1
     //      else nop
 
-    throw "VM.exec not yet implemented";
+    var cpu = this.cpu;
+    cpu.ds *= 16;
+    cpu.r4 = cpu.cs;
+    cpu.r5 = cpu.ds;
+    console.log(cpu);
+    var mem = this.mem;
+    var halt = false;
+
+    var test = [];
+    var prevTest = [];
+    var foo = 0;
+
+    while (!halt) {
+      // cpu.cs = mem[cpu.ip];
+      var currByte = mem[cpu.ip];
+      var opCode = currByte >> 5;
+      var mod = currByte & 16 ? true : false;
+      var op1 = currByte & 15;
+      var op2;
+      if (opCode === 2) {
+        op2 = mod ? cpu.r2 : mem[cpu.ds + cpu.r2];
+      } else if (opCode === 0 || opCode === 6) {
+        op2 = cpu.r2;
+      } else {
+        op2 = mod ? mem[cpu.ip + 1] : cpu.r2;
+      }
+      console.log('ip    ', cpu.ip);
+      console.log('cs    ', currByte, currByte.toString(2));
+      console.log('fl    ', cpu.fl);
+      console.log('opcode', opCode);
+      console.log('mod   ', mod);
+      console.log('op1   ', op1);
+      console.log('op2   ', op2);
+      console.log('regs  ', [cpu.r0, cpu.r1, cpu.r2, cpu.r3].join());
+      test = [cpu.ip, currByte];
+      switch (opCode) {
+        // jmp
+        // jmpe
+        case 0:
+        case 6:
+          var jmpeCheck = !(opCode === 6 && cpu.fl !== 0);
+          if (jmpeCheck) {
+            if (mod) {
+              cpu.ip = (op2 * 16) + op1;
+            } else {
+              // console.log('jumping to', 'r' + op1, cpu['r' + op1]);
+              cpu.ip = cpu['r' + op1];
+            }
+          }
+          break;
+
+        // movr
+        case 1:
+          if (mod) {
+            cpu['r' + op1] = op2;
+          } else {
+            cpu.r1 = op2;
+          }
+          break;
+
+        // movm
+        case 2:
+          if (mod) {
+            console.log('mem before', mem[cpu.ds + cpu.r1]);
+            mem[cpu.ds + cpu.r1] = op2;
+            console.log('mem after', mem[cpu.ds + cpu.r1]);
+          } else {
+            mem[cpu['r' + op1]] = op2;
+          }
+          break;
+
+        // add
+        case 3:
+          cpu.r1 += op2;
+          break;
+
+        // xor
+        case 4:
+          cpu.r1 ^= op2;
+          break;
+
+        // cmp
+        case 5:
+          var r1 = cpu.r1;
+          var r2 = cpu.r2;
+          if (r1 === r2) cpu.fl = 0;
+          if (r1 < r2) cpu.fl = 0xff;
+          if (r1 > r2) cpu.fl = 1;
+          break;
+
+        // hlt
+        case 7:
+          console.log('should halt');
+          halt = true;
+          break;
+
+      }
+      if (opCode !== 0 && opCode !== 6) {
+        cpu.ip++;
+        if (mod) {
+          switch (opCode) {
+            case 1:
+            case 3:
+            case 4:
+            case 5:
+              console.log('double ip shift');
+              cpu.ip++;
+              break;
+          }
+        }
+      }
+      console.log('regs  ', [cpu.r0, cpu.r1, cpu.r2, cpu.r3].join());
+      var sameMem = function () {
+        return foo++ === 6;
+        return test[0] === prevTest[0] && test[1] === prevTest[1] ? true : false;
+      };
+      if (sameMem()) process.exit();
+      prevTest = [cpu.ip, currByte];
+      console.log();
+    }
+
   }
 
 };
@@ -149,7 +271,16 @@ var VM = {
 
 try
 {
+  // process.on('exit', function () {
+  //   console.log('exit early');
+  // });
+  // setTimeout(function () {
+  //   console.log('Took too long');
+  //   process.reallyExit();
+  // }, 0);
   VM.exec();
+  console.log('Done');
+  // console.log(VM.mem.join());
 }
 catch(e)
 {
